@@ -1,4 +1,8 @@
 import re
+from threading import Lock
+
+# a workaround to ensure that wordnet is thread-safe
+synset_lock = Lock()
 
 try:
     from nltk.corpus import wordnet as wn
@@ -49,12 +53,16 @@ def get_related_lemmas(word):
 
 def get_related_lemmas_rec(word, known_lemmas, similarity_threshold):
     # Turn string word into list of Lemma objects
-    all_lemmas_for_this_word = [
-        lemma
-        for ss in wn.synsets(word)
-        for lemma in ss.lemmas()
-        if lemma.name() == word
-    ]
+    synset_lock.acquire()
+    try:
+        all_lemmas_for_this_word = [
+            lemma
+            for ss in wn.synsets(word)
+            for lemma in ss.lemmas()
+            if lemma.name() == word
+        ]
+    finally:
+        synset_lock.release()
     # Add new lemmas to known lemmas
     known_lemmas += [
         lemma for lemma in all_lemmas_for_this_word if not belongs(lemma, known_lemmas)
